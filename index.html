@@ -5,55 +5,91 @@
   <title>Mini Multiplayer</title>
   <style>
     canvas { border: 1px solid black; background: #f0f0f0; }
+    #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      flex-direction: column;
+    }
+    input { font-size: 20px; padding: 5px; text-align: center; width: 50px; }
   </style>
 </head>
 <body>
+  <div id="overlay">
+    <p>Gib deine Zahl ein (1 oder 2):</p>
+    <input id="playerInput" type="text" maxlength="1">
+    <button onclick="startGame()">Start</button>
+  </div>
+
   <canvas id="game" width="400" height="400"></canvas>
+
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
 
-    let myId = null;
+    let playerId = null;
+    let myNumber = null;
     let positions = {};
-    const socket = new WebSocket("wss://typical-numerous-menu.glitch.me");
 
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "init") {
-        myId = data.id;
+    function startGame() {
+      const input = document.getElementById("playerInput").value;
+      if (input !== "1" && input !== "2") {
+        alert("Nur 1 oder 2 erlaubt!");
+        return;
       }
-      if (data.type === "positions") {
-        positions = data.positions;
-      }
-    };
-
-    let x = 200, y = 200;
-
-    function draw() {
-      ctx.clearRect(0, 0, 400, 400);
-      for (let id in positions) {
-        ctx.fillStyle = (id === myId) ? "blue" : "red";
-        ctx.beginPath();
-        ctx.arc(positions[id].x, positions[id].y, 10, 0, 2 * Math.PI);
-        ctx.fill();
-      }
+      myNumber = input;
+      document.getElementById("overlay").style.display = "none";
+      connectToServer();
     }
 
-    function update() {
-      if (myId) {
-        socket.send(JSON.stringify({ type: "move", x, y }));
+    function connectToServer() {
+      const socket = new WebSocket("wss://typical-numerous-menu.glitch.me");
+
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "init") {
+          playerId = data.id;
+        }
+        if (data.type === "positions") {
+          positions = data.positions;
+        }
+      };
+
+      let x = 100 + (myNumber === "1" ? -50 : 50);
+      let y = 200;
+
+      function draw() {
+        ctx.clearRect(0, 0, 400, 400);
+        for (let id in positions) {
+          const p = positions[id];
+          ctx.fillStyle = (id === playerId) ? "blue" : "red";
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 10, 0, 2 * Math.PI);
+          ctx.fill();
+        }
       }
+
+      function update() {
+        if (playerId) {
+          socket.send(JSON.stringify({ type: "move", x, y }));
+        }
+      }
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowUp") y -= 5;
+        if (e.key === "ArrowDown") y += 5;
+        if (e.key === "ArrowLeft") x -= 5;
+        if (e.key === "ArrowRight") x += 5;
+        update();
+      });
+
+      setInterval(draw, 30);
     }
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowUp") y -= 5;
-      if (e.key === "ArrowDown") y += 5;
-      if (e.key === "ArrowLeft") x -= 5;
-      if (e.key === "ArrowRight") x += 5;
-      update();
-    });
-
-    setInterval(draw, 30);
   </script>
 </body>
 </html>
